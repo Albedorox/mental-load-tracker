@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mental Load Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+        .container { max-width: 600px; margin: auto; }
+        .breadcrumb { margin-bottom: 10px; font-size: 14px; }
+        .breadcrumb span { cursor: pointer; color: blue; text-decoration: underline; margin-right: 5px; }
+        .breadcrumb span:last-child { text-decoration: none; color: black; cursor: default; }
+        .category, .sub-category, .activity { padding: 10px; margin: 5px; background: #f0f0f0; cursor: pointer; display: block; }
+        .hidden { display: none; }
+        .chart-container { width: 80%; margin: auto; }
+    </style>
+</head>
+<body>
+    <h1>Mental Load Tracker</h1>
+    <div class="container">
+        <h2>Log Activity</h2>
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <div id="navigation"></div>
+    </div>
+    
+    <div class="chart-container">
+        <h2>Daily Mental Load</h2>
+        <canvas id="mentalLoadChart"></canvas>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const structure = {
+                "Home": { 
+                    "House": {
+                        "Kitchen": {
+                            "Fridge": { 
+                              "Clean Shelves (+5)": 5,
+                              "Defrost (+8)": 8
+                            },
+                            "Coffee Machine": { "Descale (+4)": 4 },
+                            "Dishwasher": { "Insert Dishes (+5)": 5 },
+                            "Stove": { "Clean Surface (+3)": 3 },
+                            "Sink": { "Wash Dishes (+2)": 2 }
+                        },
+                        "Living Room": {
+                            "Clean Floor": { "Clean Shelves (+5)": 5 },
+                            "Tidy up Room": { "Descale (+4)": 4 },
+                            "Clean Sofa": { "Insert Dishes (+5)": 5 },
+                            "Stove": { "Clean Surface (+3)": 3 },
+                            "Sink": { "Wash Dishes (+2)": 2 }
+                        },
+                        "Bathroom": {},
+                        "Bedroom": {}
+                    }, 
+                    "Garden": {} 
+                }
+            };
+
+            let currentPath = ["Home"];
+            const breadcrumb = document.getElementById("breadcrumb");
+            const navigation = document.getElementById("navigation");
+            const dailyLoad = JSON.parse(localStorage.getItem("dailyLoad")) || [];
+
+            function renderNavigation() {
+                navigation.innerHTML = "";
+                const currentLevel = getCurrentLevel();
+                
+                for (const key in currentLevel) {
+                    const item = document.createElement("div");
+                    item.classList.add("category");
+                    item.textContent = key;
+                    
+                    if (typeof currentLevel[key] === "object" && !Number.isInteger(currentLevel[key])) {
+                        item.addEventListener("click", () => {
+                            currentPath.push(key);
+                            renderNavigation();
+                        });
+                    } else {
+                        item.classList.add("activity");
+                        item.dataset.points = currentLevel[key];
+                        item.addEventListener("click", () => {
+                            dailyLoad.push(currentLevel[key]);
+                            localStorage.setItem("dailyLoad", JSON.stringify(dailyLoad));
+                            updateChart();
+                        });
+                    }
+                    navigation.appendChild(item);
+                }
+                renderBreadcrumb();
+            }
+
+            function renderBreadcrumb() {
+                breadcrumb.innerHTML = "";
+                currentPath.forEach((step, index) => {
+                    const crumb = document.createElement("span");
+                    crumb.textContent = step;
+                    
+                    if (index < currentPath.length - 1) {
+                        crumb.style.cursor = "pointer";
+                        crumb.style.color = "blue";
+                        crumb.addEventListener("click", () => {
+                            currentPath = currentPath.slice(0, index + 1);
+                            renderNavigation();
+                        });
+                    } else {
+                        crumb.style.fontWeight = "bold";
+                        crumb.style.color = "black";
+                    }
+                    breadcrumb.appendChild(crumb);
+                    if (index < currentPath.length - 1) {
+                        const separator = document.createElement("span");
+                        separator.textContent = " > ";
+                        breadcrumb.appendChild(separator);
+                    }
+                });
+            }
+
+            function getCurrentLevel() {
+                return currentPath.reduce((acc, step) => acc[step] || {}, structure);
+            }
+
+            function updateChart() {
+                const chartCanvas = document.getElementById("mentalLoadChart");
+                if (!chartCanvas) return;
+                const ctx = chartCanvas.getContext("2d");
+                const total = dailyLoad.reduce((a, b) => a + b, 0);
+                
+                if (window.myChart) window.myChart.destroy();
+                window.myChart = new Chart(ctx, {
+                    type: "bar",
+                    data: {
+                        labels: ["Today"],
+                        datasets: [{
+                            label: "Mental Load Points",
+                            data: [total],
+                            backgroundColor: "rgba(54, 162, 235, 0.5)",
+                        }]
+                    },
+                });
+            }
+
+            renderNavigation();
+            updateChart();
+        });
+    </script>
+</body>
+</html>
