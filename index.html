@@ -69,7 +69,10 @@
             let mentalLoadData = JSON.parse(localStorage.getItem("mentalLoadData")) || {};
             const today = new Date().toISOString().split('T')[0];
             
-            if (!mentalLoadData[today]) mentalLoadData[today] = [];
+            if (!mentalLoadData[today]) {
+                mentalLoadData[today] = [];
+                localStorage.setItem("mentalLoadData", JSON.stringify(mentalLoadData));
+            }
 
             function renderNavigation() {
                 navigation.innerHTML = "";
@@ -133,34 +136,14 @@
             function updateChart() {
                 const chartCanvas = document.getElementById("mentalLoadChart");
                 const ctx = chartCanvas.getContext("2d");
-                let labels = ["Today"];
-                let data = [mentalLoadData[today]?.reduce((a, b) => a + b, 0) || 0];
+                let data = mentalLoadData[today] ? [mentalLoadData[today].reduce((a, b) => a + b, 0)] : [0];
                 
                 if (window.myChart) window.myChart.destroy();
                 window.myChart = new Chart(ctx, {
                     type: "bar",
-                    data: {
-                        labels: labels,
-                        datasets: [{
-                            label: "Mental Load Points",
-                            data: data,
-                            backgroundColor: "rgba(54, 162, 235, 0.5)",
-                        }]
-                    },
+                    data: { labels: ["Today"], datasets: [{ label: "Mental Load Points", data: data, backgroundColor: "rgba(54, 162, 235, 0.5)" }] },
                 });
             }
-
-            window.setTimeframe = (newTimeframe) => {
-                timeframe = newTimeframe;
-                updateChart();
-            };
-
-            backButton.addEventListener("click", () => {
-                if (currentPath.length > 1) {
-                    currentPath.pop();
-                    renderNavigation();
-                }
-            });
 
             renderNavigation();
             updateChart();
