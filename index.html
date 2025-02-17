@@ -6,14 +6,20 @@
     <title>Mental Load Tracker</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; background: #f8f9fa; }
         .container { max-width: 600px; margin: auto; }
-        .breadcrumb { margin-bottom: 10px; font-size: 14px; }
+        .breadcrumb { margin-bottom: 10px; font-size: 14px; padding: 10px; background: #e9ecef; border-radius: 8px; display: inline-block; }
         .breadcrumb span { cursor: pointer; color: blue; text-decoration: underline; margin-right: 5px; }
-        .breadcrumb span:last-child { text-decoration: none; color: black; cursor: default; }
-        .category, .sub-category, .activity { padding: 10px; margin: 5px; background: #f0f0f0; cursor: pointer; display: block; }
+        .breadcrumb span:last-child { text-decoration: none; color: black; cursor: default; font-weight: bold; }
+        .category, .sub-category, .activity { padding: 15px; margin: 5px; background: #ffffff; cursor: pointer; display: block; border-radius: 10px; box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1); transition: all 0.3s ease-in-out; }
+        .category:hover, .sub-category:hover, .activity:hover { background: #e3f2fd; }
         .hidden { display: none; }
         .chart-container { width: 80%; margin: auto; }
+        .back-button { margin: 10px; padding: 8px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; display: none; }
+        .back-button:hover { background: #0056b3; }
+        .timeframe-buttons { margin-bottom: 10px; }
+        .timeframe-buttons button { margin: 5px; padding: 8px 15px; border: none; border-radius: 5px; cursor: pointer; background: #28a745; color: white; }
+        .timeframe-buttons button:hover { background: #218838; }
     </style>
 </head>
 <body>
@@ -21,11 +27,17 @@
     <div class="container">
         <h2>Log Activity</h2>
         <div class="breadcrumb" id="breadcrumb"></div>
+        <button class="back-button" id="backButton">Back</button>
         <div id="navigation"></div>
     </div>
     
     <div class="chart-container">
-        <h2>Daily Mental Load</h2>
+        <h2>Mental Load Over Time</h2>
+        <div class="timeframe-buttons">
+            <button onclick="setTimeframe('daily')">Daily</button>
+            <button onclick="setTimeframe('weekly')">Weekly</button>
+            <button onclick="setTimeframe('monthly')">Monthly</button>
+        </div>
         <canvas id="mentalLoadChart"></canvas>
     </div>
 
@@ -35,22 +47,13 @@
                 "Home": { 
                     "House": {
                         "Kitchen": {
-                            "Fridge": { 
-                              "Clean Shelves (+5)": 5,
-                              "Defrost (+8)": 8
-                            },
+                            "Fridge": { "Clean Shelves (+5)": 5 },
                             "Coffee Machine": { "Descale (+4)": 4 },
                             "Dishwasher": { "Insert Dishes (+5)": 5 },
                             "Stove": { "Clean Surface (+3)": 3 },
                             "Sink": { "Wash Dishes (+2)": 2 }
                         },
-                        "Living Room": {
-                            "Clean Floor": { "Clean Shelves (+5)": 5 },
-                            "Tidy up Room": { "Descale (+4)": 4 },
-                            "Clean Sofa": { "Insert Dishes (+5)": 5 },
-                            "Stove": { "Clean Surface (+3)": 3 },
-                            "Sink": { "Wash Dishes (+2)": 2 }
-                        },
+                        "Living Room": {},
                         "Bathroom": {},
                         "Bedroom": {}
                     }, 
@@ -61,7 +64,12 @@
             let currentPath = ["Home"];
             const breadcrumb = document.getElementById("breadcrumb");
             const navigation = document.getElementById("navigation");
-            const dailyLoad = JSON.parse(localStorage.getItem("dailyLoad")) || [];
+            const backButton = document.getElementById("backButton");
+            let timeframe = "daily";
+            let mentalLoadData = JSON.parse(localStorage.getItem("mentalLoadData")) || {};
+            const today = new Date().toISOString().split('T')[0];
+            
+            if (!mentalLoadData[today]) mentalLoadData[today] = [];
 
             function renderNavigation() {
                 navigation.innerHTML = "";
@@ -81,14 +89,15 @@
                         item.classList.add("activity");
                         item.dataset.points = currentLevel[key];
                         item.addEventListener("click", () => {
-                            dailyLoad.push(currentLevel[key]);
-                            localStorage.setItem("dailyLoad", JSON.stringify(dailyLoad));
+                            mentalLoadData[today].push(currentLevel[key]);
+                            localStorage.setItem("mentalLoadData", JSON.stringify(mentalLoadData));
                             updateChart();
                         });
                     }
                     navigation.appendChild(item);
                 }
                 renderBreadcrumb();
+                backButton.style.display = currentPath.length > 1 ? "block" : "none";
             }
 
             function renderBreadcrumb() {
@@ -123,23 +132,35 @@
 
             function updateChart() {
                 const chartCanvas = document.getElementById("mentalLoadChart");
-                if (!chartCanvas) return;
                 const ctx = chartCanvas.getContext("2d");
-                const total = dailyLoad.reduce((a, b) => a + b, 0);
+                let labels = ["Today"];
+                let data = [mentalLoadData[today]?.reduce((a, b) => a + b, 0) || 0];
                 
                 if (window.myChart) window.myChart.destroy();
                 window.myChart = new Chart(ctx, {
                     type: "bar",
                     data: {
-                        labels: ["Today"],
+                        labels: labels,
                         datasets: [{
                             label: "Mental Load Points",
-                            data: [total],
+                            data: data,
                             backgroundColor: "rgba(54, 162, 235, 0.5)",
                         }]
                     },
                 });
             }
+
+            window.setTimeframe = (newTimeframe) => {
+                timeframe = newTimeframe;
+                updateChart();
+            };
+
+            backButton.addEventListener("click", () => {
+                if (currentPath.length > 1) {
+                    currentPath.pop();
+                    renderNavigation();
+                }
+            });
 
             renderNavigation();
             updateChart();
