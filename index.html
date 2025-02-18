@@ -103,6 +103,13 @@
                 backButton.style.display = currentPath.length > 1 ? "block" : "none";
             }
 
+            backButton.addEventListener("click", () => {
+                if (currentPath.length > 1) {
+                    currentPath.pop();
+                    renderNavigation();
+                }
+            });
+
             function renderBreadcrumb() {
                 breadcrumb.innerHTML = "";
                 currentPath.forEach((step, index) => {
@@ -133,16 +140,17 @@
                 return currentPath.reduce((acc, step) => acc[step] || {}, structure);
             }
 
+            const ctx = document.getElementById("mentalLoadChart").getContext("2d");
+            let chart = new Chart(ctx, {
+                type: "bar",
+                data: { labels: [], datasets: [{ label: "Mental Load", data: [] }] },
+                options: { responsive: true }
+            });
+            
             function updateChart() {
-                const chartCanvas = document.getElementById("mentalLoadChart");
-                const ctx = chartCanvas.getContext("2d");
-                let data = mentalLoadData[today] ? [mentalLoadData[today].reduce((a, b) => a + b, 0)] : [0];
-                
-                if (window.myChart) window.myChart.destroy();
-                window.myChart = new Chart(ctx, {
-                    type: "bar",
-                    data: { labels: ["Today"], datasets: [{ label: "Mental Load Points", data: data, backgroundColor: "rgba(54, 162, 235, 0.5)" }] },
-                });
+                chart.data.labels = Object.keys(mentalLoadData);
+                chart.data.datasets[0].data = Object.values(mentalLoadData).map(arr => arr.reduce((sum, val) => sum + val, 0));
+                chart.update();
             }
 
             renderNavigation();
