@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mental Load Tracker</title>
+    <!-- Chart.js von cdnjs (erlaubte Domain) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        :root {
+            --primary: #5e72e4;
+            --primary-light: #7795f8;
+            --primary-dark: #324cdd;
+            --secondary: #f7fafc;
+            --text: #2d3748;
+            --text-light: #718096;
+            --danger: #f56565;
+            --success: #48bb78;
+            --warning: #ed8936;
+            --card-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+            --transition: all 0.15s ease;
+        }
+
+        #activityOverviewContainer {
+            margin-top: 30px;
+        }
+
+        #overviewTableContainer table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        #overviewTableContainer th, #overviewTableContainer td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+
+        #overviewTableContainer th {
+            background-color: var(--secondary);
+            color: var(--primary-dark);
+        }
+
+        #overviewTotalScore {
+            margin-top: 15px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: var(--primary-dark);
+        }
+        
+        #overviewTimeframeButtons button.active { /* Style for active overview button */
+            background: var(--primary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            text-align: center;
+            background: #f8f9fa;
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        h1, h2 {
+            margin-bottom: 20px;
+            color: var(--primary-dark);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-top: 20px;
+            background: linear-gradient(45deg, var(--primary), var(--primary-light));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .breadcrumb {
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            padding: 12px 15px;
+            background: var(--secondary);
+            border-radius: 8px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .breadcrumb span {
+            cursor: pointer;
+            color: var(--primary);
+            padding: 0 5px;
+            transition: var(--transition);
+        }
+
+        .breadcrumb span:hover {
+            color: var(--primary-dark);
+        }
+
+        .breadcrumb span:last-child {
+            color: var(--text);
+            font-weight: 600;
+            cursor: default;
+        }
+
+        .breadcrumb .separator {
+            color: var(--text-light);
+            margin: 0 2px;
+        }
+
+        #navigation {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .category, .sub-category, .activity {
+            padding: 20px 15px;
+            background: white;
+            cursor: pointer;
+            border-radius: 10px;
+            box-shadow: var(--card-shadow);
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .category {
+            background: linear-gradient(145deg, #ffffff, #f5f7fa);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+
+        .activity {
+            background: linear-gradient(145deg, var(--secondary), #ffffff);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+        }
+
+        .activity::before {
+            content: attr(data-points) " points";
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--primary-light);
+            color: white;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 20px;
+            opacity: 0.9;
+        }
+
+        .category:hover, .sub-category:hover, .activity:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 7px 14px rgba(50, 50, 93, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
+            background: linear-gradient(145deg, var(--secondary), white);
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .chart-container {
+            width: 100%;
+            max-width: 1000px;
+            margin: 30px auto;
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: var(--card-shadow);
+        }
+
+        .chart-wrapper {
+            position: relative;
+            height: 300px;
+        }
+
+        .back-button {
+            margin: 10px auto;
+            padding: 10px 20px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .back-button:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .back-button:before {
+            content: "←";
+            font-size: 1.2rem;
+            margin-right: 5px;
+        }
+
+        .timeframe-buttons {
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .timeframe-buttons button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: var(--secondary);
+            color: var(--text);
+            font-weight: 600;
+            transition: var(--transition);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .timeframe-buttons button:hover, .timeframe-buttons button.active {
+            background: var(--primary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(50, 50, 93, 0.11), 0 1px 3px rgba(0, 0, 0, 0.08);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--success);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .container, .chart-container {
+                padding: 15px;
+            }
+
+            #navigation {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 10px;
+            }
+
+            .category, .sub-category, .activity {
+                padding: 15px 10px;
+                min-height: 80px;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            #navigation {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Mental Load Tracker</h1>
+    <div class="container">
+        <h2>Log Activity</h2>
+        <div style="margin-bottom: 15px;">
+            <button id="enableNotificationsBtn" style="padding: 10px 15px; background-color: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer;">Enable Notifications</button>
+        </div>
+        <div class="breadcrumb" id="breadcrumb"></div>
+        <button class="back-button" id="backButton">Back</button>
+        <div id="navigation"></div>
+    </div>
+    
+    <div class="chart-container">
+        <h2>Mental Load Over Time</h2>
+        <div class="timeframe-buttons">
+            <button onclick="setTimeframe('daily')" id="dailyBtn">Daily</button>
+            <button onclick="setTimeframe('weekly')" id="weeklyBtn">Weekly</button>
+            <button onclick="setTimeframe('monthly')" id="monthlyBtn">Monthly</button>
+        </div>
+        <div class="chart-wrapper">
+            <canvas id="mentalLoadChart"></canvas>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <div class="container" id="activityOverviewContainer">
+        <h2>Activity Overview</h2>
+        <div class="timeframe-buttons" id="overviewTimeframeButtons">
+            <button onclick="loadActivityOverview('today')" data-period="today" class="active">Today</button>
+            <button onclick="loadActivityOverview('last7days')" data-period="last7days">Last 7 Days</button>
+            <button onclick="loadActivityOverview('last30days')" data-period="last30days">Last 30 Days</button>
+            <button onclick="loadActivityOverview('all')" data-period="all">All Time</button>
+        </div>
+        <div id="overviewTableContainer">
+            <!-- Table will be generated here by JavaScript -->
+            <p>Select a period to view activities.</p>
+        </div>
+        <p id="overviewTotalScore">Total Score: <span>0</span></p>
+    </div>
+
+    <script>
+        // Sicherstellen, dass Chart.js geladen ist, bevor wir es verwenden
+        function chartReady(callback) {
+            if (window.Chart) {
+                callback();
+            } else {
+                setTimeout(() => chartReady(callback), 100);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const structure = {
+                "Home": { 
+                    "House": {
+                        "Kitchen": {
+                            "Fridge": { "Clean Shelves (+5)": 5 },
+                            "Coffee Machine": { "Descale (+4)": 4 },
+                            "Dishwasher": { "Insert Dishes (+5)": 5 },
+                            "Stove": { "Clean Surface (+3)": 3 },
+                            "Sink": { "Wash Dishes (+2)": 2 }
+                        },
+                        "Living Room": {
+                            "Couch": { "Vacuum (+2)": 2 },
+                            "Coffee Table": { "Dust (+1)": 1 },
+                            "TV": { "Clean Screen (+2)": 2 }
+                        },
+                        "Bathroom": {
+                            "Shower": { "Clean (+4)": 4 },
+                            "Toilet": { "Clean (+3)": 3 },
+                            "Sink": { "Clean (+2)": 2 }
+                        },
+                        "Bedroom": {
+                            "Bed": { "Change Sheets (+3)": 3 },
+                            "Closet": { "Organize (+4)": 4 },
+                            "Floor": { "Vacuum (+2)": 2 }
+                        }
+                    }, 
+                    "Garden": {
+                        "Lawn": { "Mow (+5)": 5 },
+                        "Plants": { "Water (+2)": 2 },
+                        "Patio": { "Sweep (+3)": 3 }
+                    } 
+                }
+            };
+
+            // Removed in-memory storage: mentalLoadData and generateSampleData
+
+            const today = new Date().toISOString().split('T')[0]; // Keep for default values or UI, not for data storage
+
+            let currentPath = ["Home"];
+            const breadcrumb = document.getElementById("breadcrumb");
+            const navigation = document.getElementById("navigation");
+            const backButton = document.getElementById("backButton");
+            const toast = document.getElementById("toast");
+            let timeframe = "daily"; // Default timeframe
+            let chart = null;
+
+            // Helper function to format date as YYYY-MM-DD
+            function formatDate(date) {
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            
+            // Removed generateSampleData function
+
+            function showToast(message, type = 'success') { // Added type for different toast styles
+                toast.textContent = message;
+                toast.className = 'toast show'; // Reset classes
+                if (type === 'error') {
+                    toast.style.backgroundColor = 'var(--danger)';
+                } else {
+                    toast.style.backgroundColor = 'var(--success)';
+                }
+                toast.classList.add("show");
+                setTimeout(() => {
+                    toast.classList.remove("show");
+                }, 3000);
+            }
+
+            function renderNavigation() {
+                navigation.innerHTML = "";
+                const currentLevel = getCurrentLevel();
+                
+                for (const key in currentLevel) {
+                    const item = document.createElement("div");
+                    
+                    if (typeof currentLevel[key] === "object" && !Number.isInteger(currentLevel[key])) {
+                        item.classList.add("category");
+                        if (Object.keys(currentLevel[key]).length === 0) {
+                            item.textContent = key + " (Empty)";
+                            item.style.opacity = "0.7";
+                        } else {
+                            item.textContent = key;
+                            item.addEventListener("click", () => {
+                                currentPath.push(key);
+                                renderNavigation();
+                            });
+                        }
+                    } else {
+                        item.classList.add("activity");
+                        item.textContent = key.split("(")[0].trim();
+                        const score = parseInt(currentLevel[key], 10);
+                        item.dataset.points = score;
+
+                        item.addEventListener("click", async () => {
+                            const activityName = key.split("(")[0].trim();
+                            const categoryPathString = currentPath.join(' > ');
+                            
+                            try {
+                                const response = await fetch('/api/activities', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                    },
+                                    body: JSON.stringify({
+                                        activity_name: activityName,
+                                        category_path: categoryPathString,
+                                        score: score,
+                                    }),
+                                });
+
+                                if (!response.ok) {
+                                    const errorData = await response.json();
+                                    throw new Error(errorData.message || `Server error: ${response.status}`);
+                                }
+
+                                const result = await response.json();
+                                showToast(`Added ${score} points for "${activityName}"!`);
+                                updateChart(); // Refresh chart data
+                            } catch (error) {
+                                console.error('Failed to log activity:', error);
+                                showToast(`Error: ${error.message}`, 'error');
+                            }
+                        });
+                    }
+                    navigation.appendChild(item);
+                }
+                renderBreadcrumb();
+                backButton.style.display = currentPath.length > 1 ? "block" : "none";
+            }
+
+            backButton.addEventListener("click", () => {
+                if (currentPath.length > 1) {
+                    currentPath.pop();
+                    renderNavigation();
+                }
+            });
+
+            function renderBreadcrumb() {
+                breadcrumb.innerHTML = "";
+                currentPath.forEach((step, index) => {
+                    const crumb = document.createElement("span");
+                    crumb.textContent = step;
+                    
+                    if (index < currentPath.length - 1) {
+                        crumb.addEventListener("click", () => {
+                            currentPath = currentPath.slice(0, index + 1);
+                            renderNavigation();
+                        });
+                    }
+                    breadcrumb.appendChild(crumb);
+                    if (index < currentPath.length - 1) {
+                        const separator = document.createElement("span");
+                        separator.textContent = " > ";
+                        separator.classList.add("separator");
+                        breadcrumb.appendChild(separator);
+                    }
+                });
+            }
+
+            function getCurrentLevel() {
+                return currentPath.reduce((acc, step) => acc[step] || {}, structure);
+            }
+
+            function initChart() {
+                const ctx = document.getElementById("mentalLoadChart").getContext("2d");
+                chart = new Chart(ctx, {
+                    type: "bar",
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: "Mental Load",
+                            data: [],
+                            backgroundColor: 'rgba(94, 114, 228, 0.7)',
+                            borderColor: 'rgba(94, 114, 228, 1)',
+                            borderWidth: 1,
+                            borderRadius: 5,
+                            hoverBackgroundColor: 'rgba(94, 114, 228, 0.9)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' }},
+                            x: { grid: { display: false }}
+                        },
+                        plugins: {
+                            legend: { labels: { font: { family: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" }}},
+                            tooltip: { backgroundColor: 'rgba(0, 0, 0, 0.7)', padding: 10, bodyFont: { size: 14 }, titleFont: { size: 16 }}
+                        },
+                        animation: { duration: 1000, easing: 'easeInOutQuart' }
+                    }
+                });
+                // updateChart will be called after DOMContentLoaded and initChart, usually by setTimeframe or directly.
+            }
+            
+            async function updateChart() {
+                if (!chart) return;
+
+                let startDate, endDate;
+                const todayObj = new Date();
+
+                if (timeframe === 'daily') {
+                    // Last 7 days
+                    endDate = formatDate(todayObj);
+                    const startDateObj = new Date();
+                    startDateObj.setDate(todayObj.getDate() - 6);
+                    startDate = formatDate(startDateObj);
+                } else if (timeframe === 'weekly') {
+                    // Last 4 weeks
+                    // endDate is end of current week (Sunday)
+                    const currentDayOfWeek = todayObj.getDay(); // 0 (Sun) - 6 (Sat)
+                    const endDateObj = new Date(todayObj);
+                    endDateObj.setDate(todayObj.getDate() + (6 - currentDayOfWeek)); // Set to coming Saturday
+                    endDate = formatDate(endDateObj);
+
+                    // startDate is start of the week 4 weeks ago (Sunday of that week)
+                    const startDateObj = new Date(todayObj);
+                    startDateObj.setDate(todayObj.getDate() - (currentDayOfWeek + (3 * 7))); // Go back 3 full weeks and to the start of that week (Sunday)
+                    startDateObj.setDate(startDateObj.getDate() - startDateObj.getDay()); // Ensure it's Sunday
+                    startDate = formatDate(startDateObj);
+
+                } else if (timeframe === 'monthly') {
+                    // Last 6 months
+                    // endDate is end of current month
+                    const endDateObj = new Date(todayObj.getFullYear(), todayObj.getMonth() + 1, 0);
+                    endDate = formatDate(endDateObj);
+
+                    // startDate is start of the month 6 months ago
+                    const startDateObj = new Date(todayObj.getFullYear(), todayObj.getMonth() - 5, 1);
+                    startDate = formatDate(startDateObj);
+                }
+
+                try {
+                    const response = await fetch(`/api/activities?startDate=${startDate}&endDate=${endDate}`);
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `Failed to fetch activities: ${response.status}`);
+                    }
+                    const activities = await response.json();
+                    
+                    processActivitiesForChart(activities);
+
+                } catch (error) {
+                    console.error('Error updating chart data:', error);
+                    showToast(`Error fetching chart data: ${error.message}`, 'error');
+                    chart.data.labels = []; // Clear chart on error
+                    chart.data.datasets[0].data = [];
+                    chart.update();
+                }
+            }
+
+            function processActivitiesForChart(activities) {
+                let newLabels = [];
+                let newData = [];
+                const todayDate = new Date(); // Use a fresh 'today' for calculations
+
+                if (timeframe === 'daily') {
+                    const dailyScores = new Map(); // Use a Map for ordered keys (dates)
+                    for (let i = 6; i >= 0; i--) { // Iterate from 6 days ago to today
+                        const date = new Date(todayDate);
+                        date.setDate(todayDate.getDate() - i);
+                        const dateStr = formatDate(date); // YYYY-MM-DD
+                        dailyScores.set(dateStr, 0); // Initialize score for the date
+                        newLabels.push(dateStr.slice(5)); // MM-DD for label
+                    }
+
+                    activities.forEach(activity => {
+                        const activityDateStr = activity.timestamp.split('T')[0]; // YYYY-MM-DD from DB
+                        if (dailyScores.has(activityDateStr)) {
+                            dailyScores.set(activityDateStr, dailyScores.get(activityDateStr) + activity.score);
+                        }
+                    });
+                    newData = Array.from(dailyScores.values());
+
+                } else if (timeframe === 'weekly') {
+                    // Display 4 weeks: current week, and 3 previous weeks.
+                    newLabels = ["Current Week", "Last Week", "2 Weeks Ago", "3 Weeks Ago"];
+                    newData = [0, 0, 0, 0]; // Scores for these 4 weeks
+
+                    // Determine the start of the "current" week (Sunday)
+                    const currentWeekStart = new Date(todayDate);
+                    currentWeekStart.setDate(todayDate.getDate() - todayDate.getDay()); // Go to Sunday of current week
+                    currentWeekStart.setHours(0, 0, 0, 0);
+
+                    activities.forEach(activity => {
+                        const activityDate = new Date(activity.timestamp);
+                        activityDate.setHours(0,0,0,0); // Normalize activity date
+
+                        const diffInDays = (currentWeekStart - activityDate) / (1000 * 60 * 60 * 24);
+                        
+                        if (diffInDays < 0) { // Activity is in the future relative to current week's start (should not happen with current logic)
+                             // This case might need adjustment if future activities can be logged.
+                        } else if (diffInDays < 7) { // Current Week
+                            newData[0] += activity.score;
+                        } else if (diffInDays < 14) { // Last Week
+                            newData[1] += activity.score;
+                        } else if (diffInDays < 21) { // 2 Weeks Ago
+                            newData[2] += activity.score;
+                        } else if (diffInDays < 28) { // 3 Weeks Ago
+                            newData[3] += activity.score;
+                        }
+                        // Activities older than 4 weeks are ignored for this view.
+                    });
+                    // Labels are already "Current Week", "Last Week", etc. Data is summed. No need to reverse.
+
+                } else if (timeframe === 'monthly') {
+                    const monthlyScores = new Map();
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    
+                    for (let i = 5; i >= 0; i--) { // Iterate from 5 months ago to current month
+                        const date = new Date(todayDate);
+                        date.setMonth(todayDate.getMonth() - i);
+                        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+                        monthlyScores.set(monthKey, 0);
+                        newLabels.push(`${monthNames[date.getMonth()]} ${date.getFullYear()}`);
+                    }
+
+                    activities.forEach(activity => {
+                        const activityDate = new Date(activity.timestamp);
+                        const monthKey = `${activityDate.getFullYear()}-${String(activityDate.getMonth() + 1).padStart(2, '0')}`;
+                        if (monthlyScores.has(monthKey)) {
+                            monthlyScores.set(monthKey, monthlyScores.get(monthKey) + activity.score);
+                        }
+                    });
+                    newData = Array.from(monthlyScores.values());
+                }
+
+                chart.data.labels = newLabels;
+                chart.data.datasets[0].data = newData;
+                chart.update();
+            }
+
+            window.setTimeframe = async function(newTimeframe) { // Make async
+                timeframe = newTimeframe; // Set global timeframe
+                document.querySelectorAll('.timeframe-buttons button').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                document.getElementById(`${newTimeframe}Btn`).classList.add('active');
+                await updateChart(); // Await data fetching and chart update
+            };
+
+            // Erst rendern, wenn Chart.js bereit ist
+            chartReady(async () => { // Make async
+                renderNavigation();
+                initChart(); // Initialize chart structure
+                await setTimeframe('daily'); // Set default timeframe and fetch initial data for chart
+                loadActivityOverview('today'); // Load default overview data
+                registerServiceWorker(); // Register SW and set up push notifications
+            });
+
+            // --- Push Notification Logic ---
+            const vapidPublicKey = 'BDtdxx19apZMa0_DLjv499zeiicpMz76p72yn6VsT2o-qbAe3lF_hVI5M-lYH9XZWPNfPcbQ4adzCwc1hcE2MRs';
+
+            function urlBase64ToUint8Array(base64String) {
+              const padding = '='.repeat((4 - base64String.length % 4) % 4);
+              const base64 = (base64String + padding)
+                .replace(/-/g, '+')
+                .replace(/_/g, '/');
+              const rawData = window.atob(base64);
+              const outputArray = new Uint8Array(rawData.length);
+              for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+              }
+              return outputArray;
+            }
+
+            async function registerServiceWorker() {
+                const enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
+                if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                    showToast('Push messaging is not supported by your browser.', 'error');
+                    if(enableNotificationsBtn) enableNotificationsBtn.disabled = true;
+                    return;
+                }
+
+                try {
+                    const registration = await navigator.serviceWorker.register('/sw.js');
+                    console.log('Service Worker registered successfully:', registration);
+
+                    // Check current subscription status
+                    const existingSubscription = await registration.pushManager.getSubscription();
+                    if (existingSubscription) {
+                        console.log('User is already subscribed.');
+                        if(enableNotificationsBtn) {
+                            enableNotificationsBtn.textContent = 'Notifications Enabled';
+                            enableNotificationsBtn.disabled = true;
+                        }
+                        // Optional: send subscription to backend to ensure it's current,
+                        // or if you want to re-verify/update it on every page load.
+                        // await fetch('/api/subscribe', { method: 'POST', body: JSON.stringify(existingSubscription), headers: { 'Content-Type': 'application/json' }});
+
+                    } else {
+                        if(enableNotificationsBtn) {
+                            enableNotificationsBtn.textContent = 'Enable Notifications';
+                            enableNotificationsBtn.disabled = false;
+                            enableNotificationsBtn.addEventListener('click', subscribeUserToPush);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Service Worker registration failed:', error);
+                    showToast('Service Worker registration failed.', 'error');
+                    if(enableNotificationsBtn) enableNotificationsBtn.disabled = true;
+                }
+            }
+            
+            async function subscribeUserToPush() {
+                const enableNotificationsBtn = document.getElementById('enableNotificationsBtn');
+                try {
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') {
+                        showToast('Notification permission was not granted.', 'warning');
+                        return;
+                    }
+
+                    const registration = await navigator.serviceWorker.ready; // Ensures SW is active
+                    const subscription = await registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+                    });
+
+                    console.log('User subscribed:', subscription);
+                    
+                    const response = await fetch('/api/subscribe', {
+                        method: 'POST',
+                        body: JSON.stringify(subscription),
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || 'Failed to subscribe on backend.');
+                    }
+                    
+                    showToast('Successfully subscribed to notifications!', 'success');
+                    if(enableNotificationsBtn) {
+                        enableNotificationsBtn.textContent = 'Notifications Enabled';
+                        enableNotificationsBtn.disabled = true;
+                    }
+
+                } catch (error) {
+                    console.error('Failed to subscribe user to push notifications:', error);
+                    showToast(`Error subscribing: ${error.message}`, 'error');
+                     if(enableNotificationsBtn) {
+                        enableNotificationsBtn.textContent = 'Enable Notifications'; // Reset button
+                        enableNotificationsBtn.disabled = false;
+                    }
+                }
+            }
+            // --- End Push Notification Logic ---
+
+            async function loadActivityOverview(period) {
+                const overviewTableContainer = document.getElementById('overviewTableContainer');
+                const overviewTotalScoreSpan = document.getElementById('overviewTotalScore').querySelector('span');
+                
+                // Update active button state for overview buttons
+                document.querySelectorAll('#overviewTimeframeButtons button').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.dataset.period === period) {
+                        btn.classList.add('active');
+                    }
+                });
+
+                overviewTableContainer.innerHTML = '<p>Loading activities...</p>'; // Show loading message
+                overviewTotalScoreSpan.textContent = '0';
+
+                let startDate, endDate;
+                const today = new Date();
+
+                switch (period) {
+                    case 'today':
+                        startDate = formatDate(today);
+                        endDate = formatDate(today);
+                        break;
+                    case 'last7days':
+                        const sevenDaysAgo = new Date();
+                        sevenDaysAgo.setDate(today.getDate() - 6); // Include today in the 7 days
+                        startDate = formatDate(sevenDaysAgo);
+                        endDate = formatDate(today);
+                        break;
+                    case 'last30days':
+                        const thirtyDaysAgo = new Date();
+                        thirtyDaysAgo.setDate(today.getDate() - 29); // Include today in the 30 days
+                        startDate = formatDate(thirtyDaysAgo);
+                        endDate = formatDate(today);
+                        break;
+                    case 'all':
+                    default:
+                        // No date parameters needed for 'all time'
+                        break;
+                }
+
+                let apiUrl = '/api/activities';
+                if (startDate && endDate) {
+                    apiUrl += `?startDate=${startDate}&endDate=${endDate}`;
+                }
+
+                try {
+                    const response = await fetch(apiUrl);
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.message || `Failed to fetch activities: ${response.status}`);
+                    }
+                    const activities = await response.json();
+
+                    if (activities.length === 0) {
+                        overviewTableContainer.innerHTML = '<p>No activities logged for this period.</p>';
+                        overviewTotalScoreSpan.textContent = '0';
+                        return;
+                    }
+
+                    let totalScore = 0;
+                    const table = document.createElement('table');
+                    table.innerHTML = `
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Activity Name</th>
+                                <th>Category</th>
+                                <th>Score</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    `;
+                    const tbody = table.querySelector('tbody');
+
+                    activities.forEach(activity => {
+                        const row = tbody.insertRow();
+                        const timestamp = new Date(activity.timestamp);
+                        const formattedTimestamp = `${formatDate(timestamp)} ${String(timestamp.getHours()).padStart(2, '0')}:${String(timestamp.getMinutes()).padStart(2, '0')}`;
+                        
+                        row.insertCell().textContent = formattedTimestamp;
+                        row.insertCell().textContent = activity.activity_name;
+                        row.insertCell().textContent = activity.category_path;
+                        row.insertCell().textContent = activity.score;
+                        totalScore += activity.score;
+                    });
+
+                    overviewTableContainer.innerHTML = ''; // Clear loading message
+                    overviewTableContainer.appendChild(table);
+                    overviewTotalScoreSpan.textContent = totalScore;
+
+                } catch (error) {
+                    console.error('Error loading activity overview:', error);
+                    overviewTableContainer.innerHTML = `<p>Error loading activities: ${error.message}</p>`;
+                    overviewTotalScoreSpan.textContent = '0';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
